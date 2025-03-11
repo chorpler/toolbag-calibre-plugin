@@ -110,11 +110,13 @@ class SpanDivEdit(Tool):
 
         self.cleanasawhistle = True
         self.changed_files = []
+        self.changes_per_file = OrderedDict()
 
         from calibre_plugins.diaps_toolbag.dialogs import RemoveDialog
         dlg = RemoveDialog(self.gui)
         if dlg.exec_():
             criteria = dlg.getCriteria()
+            self.criteria = criteria
 
             # Ensure any in progress editing the user is doing is present in the container
             self.boss.commit_all_editors_to_container()
@@ -134,7 +136,7 @@ class SpanDivEdit(Tool):
                 if not self.cleanasawhistle:
                     # Show the user what changes we have made,
                     # allowing then to revert them if necessary
-                    accepted = ResultsDialog(self.gui, self.changed_files).exec_()
+                    accepted = ResultsDialog(self.gui, self.criteria, self.changed_files, self.changes_per_file).exec_()
                     if accepted == QDialog.Accepted:
                         self.boss.show_current_diff()
                     # Update the editor UI to take into account all the changes we
@@ -150,7 +152,11 @@ class SpanDivEdit(Tool):
         if self.parse_current:
             name = editor_name(self.gui.central.current_editor)
             data = container.raw_data(name)
-            htmlstr = self.delete_modify(data, criteria)
+            output: List = self.delete_modify(data, criteria)
+            htmlstr: str = output[0]
+            change_count: int = output[1]
+            delete_count: int = output[2]
+            total_changes = change_count + delete_count
             if htmlstr != data:
                 self.cleanasawhistle = False
                 container.open(name, 'w').write(htmlstr)
@@ -158,14 +164,23 @@ class SpanDivEdit(Tool):
             from calibre_plugins.diaps_toolbag.dialogs import ShowProgressDialog
             d = ShowProgressDialog(self.gui, container, OEB_DOCS, criteria, self.delete_modify, _('Parsing'))
             self.cleanasawhistle = d.clean
-            self.changed_files.extend(d.changed_files)
+            cpf  = list(self.changes_per_file.items())
+            cpf2 = list(d.changes_per_file.items())
+            cpf.extend(cpf2)
+            self.changes_per_file = OrderedDict(cpf)
 
-    def delete_modify(self, data, criteria):
+    def delete_modify(self, data, criteria) -> List:
         _parser = MarkupParser(data, srch_str=criteria[0], srch_method=criteria[1], tag=criteria[2], attrib=criteria[3],
                                action=criteria[4], new_tag=criteria[5], new_str=criteria[6], copy=criteria[7])
 
-        htmlstr = _parser.processml()
-        return htmlstr
+        # should return a list: [COMPLETE_XHTML_STRING, CHANGE_COUNT, DELETE_COUNT]
+        output: List = _parser.processml()
+        htmlstr = output[0]
+        delete_count = output[2] if output is not None and len(output) > 2 else 0
+        change_count = output[1] if output is not None and len(output) > 1 else 0
+        delmod_result = [htmlstr, change_count, delete_count]
+        return delmod_result
+        # return htmlstr
 
     def show_configuration(self):
         from calibre_plugins.diaps_toolbag.span_div_config import ConfigWidget
@@ -227,6 +242,7 @@ class SmarterPunct(Tool):
 
         self.cleanasawhistle = True
         self.changed_files = []
+        self.changes_per_file = OrderedDict()
 
         from calibre_plugins.diaps_toolbag.dialogs import PunctDialog
         dlg = PunctDialog(self.gui)
@@ -250,7 +266,7 @@ class SmarterPunct(Tool):
                 if not self.cleanasawhistle:
                     # Show the user what changes we have made,
                     # allowing then to revert them if necessary
-                    accepted = ResultsDialog(self.gui, self.changed_files).exec_()
+                    accepted = ResultsDialog(self.gui, self.criteria, self.changed_files, self.changes_per_file).exec_()
                     if accepted == QDialog.Accepted:
                         self.boss.show_current_diff()
                     # Update the editor UI to take into account all the changes we
@@ -351,6 +367,7 @@ class CSScm2em(Tool):
 
         self.cleanasawhistle = True
         self.changed_files = []
+        self.changes_per_file = OrderedDict()
 
         self.boss.commit_all_editors_to_container()
         self.boss.add_savepoint(_('Before: Convert CM to EM'))
@@ -369,7 +386,7 @@ class CSScm2em(Tool):
             if not self.cleanasawhistle:
                 # Show the user what changes we have made,
                 # allowing then to revert them if necessary
-                accepted = ResultsDialog(self.gui, self.changed_files).exec_()
+                accepted = ResultsDialog(self.gui, self.criteria, self.changed_files, self.changes_per_file).exec_()
                 if accepted == QDialog.Accepted:
                     self.boss.show_current_diff()
                 # Update the editor UI to take into account all the changes we

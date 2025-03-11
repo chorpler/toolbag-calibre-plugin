@@ -9,6 +9,8 @@ __docformat__ = 'restructuredtext en'
 import os
 from hashlib import md5
 from zipfile import ZipFile
+from collections import OrderedDict
+from typing import Tuple, List
 from calibre_plugins.diaps_toolbag.utilities import is_py3
 
 if is_py3:
@@ -21,16 +23,16 @@ else:
 try:
     from qt.core import (Qt, QVBoxLayout, QLabel, QCheckBox, QLineEdit, QTextEdit, QComboBox, QApplication,
                     QSizePolicy, QGroupBox, QPushButton, QDialogButtonBox, QHBoxLayout, QTextBrowser,
-                    QSpacerItem, QProgressDialog, QListWidget, QTimer, QSize, QDialog, QIcon, QUrl)
+                    QSpacerItem, QProgressDialog, QFrame, QListWidget, QTableWidget, QTableWidgetItem, QHeaderView, QTimer, QSize, QDialog, QIcon, QUrl)
 except ImportError:
     try:
         from PyQt5.Qt import (Qt, QVBoxLayout, QLabel, QCheckBox, QLineEdit, QTextEdit, QComboBox, QApplication,
                         QSizePolicy, QGroupBox, QPushButton, QDialogButtonBox, QHBoxLayout, QTextBrowser,
-                        QSpacerItem, QProgressDialog, QListWidget, QTimer, QSize, QDialog, QIcon, QUrl)
+                        QSpacerItem, QProgressDialog, QFrame, QListWidget, QTableWidget, QTableWidgetItem, QHeaderView, QTimer, QSize, QDialog, QIcon, QUrl)
     except ImportError:
         from PyQt4.Qt import (Qt, QVBoxLayout, QLabel, QCheckBox, QLineEdit, QTextEdit, QComboBox, QApplication,
                         QSizePolicy, QGroupBox, QPushButton, QDialogButtonBox, QHBoxLayout, QTextBrowser,
-                        QSpacerItem, QProgressDialog, QListWidget, QTimer, QSize, QDialog, QIcon, QUrl)
+                        QSpacerItem, QProgressDialog, QFrame, QListWidget, QTableWidget, QTableWidgetItem, QHeaderView, QTimer, QSize, QDialog, QIcon, QUrl)
 
 from calibre.gui2 import error_dialog, choose_files, open_url
 from calibre.utils.config import config_dir
@@ -70,6 +72,7 @@ try:
     load_translations()
 except NameError:
     pass  # load_translations() added in calibre 1.9
+
 
 class RemoveDialog(Dialog):
     def __init__(self, parent):
@@ -457,6 +460,7 @@ class ShowProgressDialog(QProgressDialog):
         self.file_list = [i[0] for i in container.mime_map.items() if i[1] in match_list]
         self.clean = True
         self.changed_files = []
+        self.changes_per_file: OrderedDict[str, Tuple[int, int]] = OrderedDict()
         self.total_count = len(self.file_list)
         QProgressDialog.__init__(self, '', _('Cancel'), 0, self.total_count, gui)
         self.setMinimumWidth(500)
@@ -477,17 +481,23 @@ class ShowProgressDialog(QProgressDialog):
         # if is_py3:
         #    data = bytes(data.encode('utf-8'))
         # orig_hash = md5(data).digest()
-        self.i += 1
+        self.i += 1  # Count of files processed
 
-        self.setLabelText('{0}: {1}'.format(self.action_type, name))
+        label_text = f"{self.action_type}: {name}"
+
+        self.setLabelText(label_text)
         # Send the necessary data to the callback function in main.py.
-        print('Processing {0}'.format(name))
-        htmlstr = self.callback_fn(data, self.criteria)
+        # htmlstr = self.callback_fn(data, self.criteria)
+        cb_res = self.callback_fn(data, self.criteria)
+        htmlstr = cb_res[0]
+        del_count = cb_res[2] if cb_res is not None and len(cb_res) > 2 else 0
+        mod_count = cb_res[1] if cb_res is not None and len(cb_res) > 1 else 0
         # new_hash = md5(htmlstr).digest()
         # if new_hash != orig_hash:
         if htmlstr != data:
             self.container.open(name, 'w').write(htmlstr)
             self.changed_files.append(name)
+            self.changes_per_file[name] = (mod_count, del_count)
             self.clean = False
 
         self.setValue(self.i)
@@ -499,9 +509,17 @@ class ShowProgressDialog(QProgressDialog):
         self.hide()
         self.gui = None
 
+
 class ResultsDialog(Dialog):
-    def __init__(self, parent, files):
+    def __init__(self, parent, criteria, files, changes_per_file):
+        self.criteria = criteria
+        self.action = criteria[4]
         self.files = files
+        self.changes_per_file = changes_per_file
+        self.listy: QListWidget = None
+        self.tably: QTableWidget = None
+        self.file_text = "File"
+        self.action_text = "Changes" if self.action == "modify" else "Deletions" if self.action == "delete" else "Unknown Modification"
         Dialog.__init__(self, _('Changed Files'), 'toolbag_show_results_dialog', parent)
 
     def setup_ui(self):
@@ -513,11 +531,64 @@ class ResultsDialog(Dialog):
         main_layout = QHBoxLayout()
         layout.addLayout(main_layout)
         self.listy = QListWidget()
+        self.tably = QTableWidget()
+        self.tably.setColumnCount(2)
+        self.tably.setHorizontalHeaderLabels([self.file_text, self.action_text])
+        self.tably.horizontalHeader().setStretchLastSection(False)
+        self.tably.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.tably.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        # self.tably.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         # self.listy.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        main_layout.addWidget(self.listy)
-        self.listy.addItems(self.files)
+        # main_layout.addWidget(self.listy)
+        total_files_changed = 0
+        total_mods = 0
+        total_deletions = 0
+        tableRow = 0
+        if self.changes_per_file is not None and len(self.changes_per_file) > 0:
+            main_layout.addWidget(self.tably)
+            self.tably.setRowCount(len(self.changes_per_file))
+            for file_name, (mods, dels) in self.changes_per_file.items():
+                if mods == 0 and dels == 0:
+                    continue
+                total_files_changed = total_files_changed + 1
+                mod_count = mods if mods > 0 else dels
+                total_mods = total_mods + mod_count
+                itemFN = QTableWidgetItem(file_name)
+                itemMods = QTableWidgetItem(str(mods))
+                itemFN.setTextAlignment(Qt.AlignLeft)
+                itemMods.setTextAlignment(Qt.AlignRight)
+                self.tably.setItem(tableRow, 0, itemFN)
+                self.tably.setItem(tableRow, 1, itemMods)
+                tableRow = tableRow + 1
+        else:
+            main_layout.addWidget(self.listy)
+            self.listy.addItems(self.files)
 
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.tably.setRowCount(tableRow)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+
+        files_label = QLabel("Total Files Changed:")
+        files_label.setStyleSheet("font-weight: bold;")
+        files_value = QLabel(str(total_files_changed))
+
+        action_label = QLabel(f"Total {self.action_text}:")
+        action_label.setStyleSheet("font-weight: bold;")
+        action_value = QLabel(str(total_mods))
+
+        summary_layout = QVBoxLayout()
+        summary_row1 = QHBoxLayout()
+        summary_row2 = QHBoxLayout()
+        summary_row1.addWidget(files_label)
+        summary_row1.addWidget(files_value)
+        summary_row2.addWidget(action_label)
+        summary_row2.addWidget(action_value)
+        summary_layout.addLayout(summary_row1)
+        summary_layout.addLayout(summary_row2)
+        layout.addWidget(separator)
+        layout.addLayout(summary_layout)
+        # button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box = QDialogButtonBox()
 
         button_box.addButton(_("See what changed"), QDialogButtonBox.AcceptRole)
@@ -525,6 +596,7 @@ class ResultsDialog(Dialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
 
 def load_resource(name):
     with ZipFile(PLUGIN_PATH, 'r') as zf:
