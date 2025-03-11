@@ -8,6 +8,7 @@ __docformat__ = 'restructuredtext en'
 
 from collections import OrderedDict
 import regex as re
+from typing import List
 
 SVG_ATTR = ['attributeName', 'attributeType', 'baseFrequency', 'baseProfile', 'calcMode', 'clipPathUnits', 'contentScriptType', 'contentStyleType',
             'data-AmznRemoved', 'diffuseConstant', 'edgeMode', 'externalResourcesRequired', 'filterRes', 'filterUnits', 'glyphRef', 'gradientTransform',
@@ -110,8 +111,8 @@ class MarkupParser(object):
             p += 1
             while s[p:p+1] == ' ' : p += 1
         b = p
-        # handle comment special case as there may be no spaces to 
-        # delimit name begin or end 
+        # handle comment special case as there may be no spaces to
+        # delimit name begin or end
         if s[b:].startswith('!--'):
             p = b+3
             tname = '!--'
@@ -196,9 +197,12 @@ class MarkupParser(object):
         return ttype, tname, tattr
 
     # main routine to process the xhtml markup language
-    def processml(self):
+    # should return a list: [COMPLETE_XHTML_STRING, CHANGE_COUNT, DELETE_COUNT]
+    def processml(self) -> List:
         htmlstr = ''
         skip = False
+        mod_count = 0
+        del_count = 0
 
         # now parse the cleaned up ml into standard xhtml
         while True:
@@ -222,11 +226,14 @@ class MarkupParser(object):
                         if self.action == 'delete':
                             tname = 'removeme:{0}'.format(tname)
                             tattr = None
+                            del_count += 1
                         elif self.action == 'modify':
                             if self.new_tag is None:
                                 tname = 'changeme:{0}'.format(tname)
+                                mod_count += 1
                             else:
                                 tname = 'changeme:{0}'.format(self.new_tag)
+                                mod_count += 1
                             if not self.copy_attr:
                                 if not len(self.new_str):
                                     tattr = None
@@ -237,11 +244,14 @@ class MarkupParser(object):
                         if self.action == 'delete':
                             tname = 'removeme:{0}'.format(tname)
                             tattr = None
+                            del_count += 1
                         elif self.action == 'modify':
                             if self.new_tag is None:
                                 tname = 'changeme:{0}'.format(tname)
+                                mod_count += 1
                             else:
                                 tname = 'changeme:{0}'.format(self.new_tag)
+                                mod_count += 1
                             if not len(self.new_str):
                                 tattr = None
                             else:
@@ -265,9 +275,10 @@ class MarkupParser(object):
                 # special case xml doctype
                 # if ttype == 'begin' and tname != '?xml' and tname != '!DOCTYPE':
                 # should not need the previous if ttype cannot possibly equal both 'begin' and 'passthrough'.
+                last_path = self.path[-1] if len(self.path) > 0 else None
                 if ttype == 'begin':
                     self.path.append(tname)
-                elif ttype == 'end':
+                elif ttype == 'end' and last_path is not None:
                     if tname != self.path[-1]:
                         print ('improper nesting: ', self.path, tname, type)
                     self.path.pop()
@@ -281,7 +292,9 @@ class MarkupParser(object):
                     taginfo = (ttype, tname, tattr)
                     htmlstr += self.processtag(taginfo)
 
-        return htmlstr
+        res = list([htmlstr, mod_count, del_count])
+        return res
+        # return htmlstr
 
     # flatten possibly modified tag back to string
     def taginfo_tostring(self, taginfo):
