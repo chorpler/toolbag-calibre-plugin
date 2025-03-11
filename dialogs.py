@@ -126,8 +126,8 @@ class RemoveDialog(Dialog):
         attr_layout.addWidget(label)
         self.attr_combo = QComboBox()
         attr_layout.addWidget(self.attr_combo)
-        self.attr_combo.addItems(self.prefs['attrs'])
         self.attr_combo.addItem(NO_ATTRIB_STR)
+        self.attr_combo.addItems(self.prefs['attrs'])
         self.attr_combo.currentIndexChanged.connect(self.update_gui)
 
         srch_layout = QHBoxLayout()
@@ -172,7 +172,9 @@ class RemoveDialog(Dialog):
         layout.addWidget(button_box)
 
     def update_gui(self):
-        if self.attr_combo.currentIndex() == self.attr_combo.count()-1:
+        # If "no attributes" is selected, disable the search text box and regex checkbox
+        # if self.attr_combo.currentIndex() == self.attr_combo.count()-1:
+        if self.attr_combo.currentIndex() == 0:
             self.srch_txt.clear()
             self.srch_txt.setDisabled(True)
             self.srch_method.setChecked(False)
@@ -209,7 +211,8 @@ class RemoveDialog(Dialog):
             action = 'delete'
         else:
             action = 'modify'
-        if self.attr_combo.currentIndex() == self.attr_combo.count()-1:
+        # if self.attr_combo.currentIndex() == self.attr_combo.count()-1:
+        if self.attr_combo.currentIndex() == 0:
             attribute = None
         else:
             attribute = text_type(self.attr_combo.currentText())
