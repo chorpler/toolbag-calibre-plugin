@@ -15,6 +15,8 @@ except ImportError:
         from PyQt4.Qt import QAction, QMenu, QDialog, QIcon, QPixmap
 
 import os
+from collections import OrderedDict
+from typing import List
 
 from calibre.gui2.tweak_book.plugin import Tool
 from calibre.gui2.tweak_book import editor_name
@@ -50,6 +52,7 @@ try:
 except NameError:
     pass  # load_translations() added in calibre 1.9
 
+
 class SpanDivEdit(Tool):
     name = 'SpanDivEdit'
 
@@ -58,6 +61,13 @@ class SpanDivEdit(Tool):
 
     #: If True the user can choose to place this tool in the plugins menu
     allowed_in_menu = True
+
+    cleanasawhistle = True
+
+    changes_per_file = OrderedDict()
+    changed_files = []
+
+    criteria = None
 
     def create_action(self, for_toolbar=True):
         self.plugin_prefs = JSONConfig('plugins/{0}_SpanDivEdit'.format(PLUGIN_SAFE_NAME))
