@@ -55,7 +55,8 @@ def calibreWrapper(*cmd):
 
     # Poll process for new output until finished
     while True:
-        nextline = process.stdout.readline()
+        read_in_line = process.stdout.readline()
+        nextline = read_in_line.decode('utf-8')
         if nextline == '' and process.poll() is not None:
             break
         sys.stdout.write(nextline)
