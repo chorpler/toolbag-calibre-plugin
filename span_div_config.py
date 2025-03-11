@@ -144,7 +144,7 @@ class ConfigWidget(Dialog):
         layout.addWidget(button_box)
 
     def save_settings(self):
-        # Save current dialog sttings back to JSON config file
+        # Save current dialog settings back to JSON config file
         for tag in self.taglist:
             tmp_list = text_type(self.qlinedit_widgets[tag].displayText()).split(',')
             tmp_list = [x.strip(' ') for x in tmp_list]
