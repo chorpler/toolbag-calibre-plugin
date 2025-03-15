@@ -516,7 +516,7 @@ class ShowProgressDialog(QProgressDialog):
 class ResultsDialog(Dialog):
     def __init__(self, parent, criteria, files, changes_per_file):
         self.criteria = criteria
-        self.action = criteria[4]
+        self.action = criteria[4] if criteria is not None and len(criteria) > 4 else "unknown"
         self.files = files
         self.changes_per_file = changes_per_file
         self.listy: QListWidget = None

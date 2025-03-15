@@ -204,6 +204,9 @@ class SmarterPunct(Tool):
     #: If True the user can choose to place this tool in the plugins menu
     allowed_in_menu = True
 
+    criteria = None
+
+
     def create_action(self, for_toolbar=True):
         self.plugin_prefs = JSONConfig('plugins/{0}_SmarterPunct'.format(PLUGIN_SAFE_NAME))
         self.plugin_prefs.defaults['parse_current'] = True
