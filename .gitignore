@@ -1,3 +1,9 @@
+# Plugin specific ignores
+calibre
+qt
+pydevd-pycharm.egg
+test/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
