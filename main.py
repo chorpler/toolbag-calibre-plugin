@@ -490,7 +490,7 @@ class Dezalgo(Tool):
 
         # Create an action, this will be added to the plugins toolbar and
         # the plugins menu
-        ac = QAction(get_icon('images/dezalgo_icon.128.png'), _(self.name), self.gui)
+        ac = QAction(get_icon('images/dezalgo_icon.round.128.png'), _(self.name), self.gui)
         self.restore_prefs()
         if not for_toolbar:
             # Register a keyboard shortcut for this toolbar action. We only
