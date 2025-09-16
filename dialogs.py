@@ -11,7 +11,10 @@ from hashlib import md5
 from zipfile import ZipFile
 from collections import OrderedDict
 from typing import Tuple, List
-from calibre_plugins.diaps_toolbag.utilities import is_py3
+try:
+    from calibre_plugins.diaps_toolbag.utilities import is_py3
+except ImportError:
+    from utilities import is_py3
 
 if is_py3:
     text_type = str
@@ -38,7 +41,10 @@ from calibre.gui2 import error_dialog, choose_files, open_url
 from calibre.utils.config import config_dir
 
 from calibre.gui2.tweak_book.widgets import Dialog
-from calibre_plugins.diaps_toolbag.__init__ import (PLUGIN_NAME, PLUGIN_SAFE_NAME)
+try:
+    from calibre_plugins.diaps_toolbag.__init__ import (PLUGIN_NAME, PLUGIN_SAFE_NAME)
+except ImportError:
+    from __init__ import (PLUGIN_NAME, PLUGIN_SAFE_NAME)
 
 PLUGIN_PATH = os.path.join(config_dir, 'plugins', '{}.zip'.format(PLUGIN_NAME))
 
@@ -76,7 +82,13 @@ except NameError:
 
 class RemoveDialog(Dialog):
     def __init__(self, parent):
-        from calibre_plugins.diaps_toolbag.span_div_config import plugin_prefs as prefs
+        try:
+            from calibre_plugins.diaps_toolbag.span_div_config import plugin_prefs as prefs
+            from calibre_plugins.diaps_toolbag.dezalgo_config import plugin_prefs as dezalgo_prefs
+        except ImportError:
+            from span_div_config import plugin_prefs as prefs
+            from dezalgo_config import plugin_prefs as dezalgo_prefs
+
         self.criteria = None
         self.prefs = prefs
         self.parent = parent
@@ -457,6 +469,149 @@ class PunctDialog(Dialog):
             pass
         return words_list
 
+
+class DezalgoDialog(Dialog):
+    def __init__(self, parent):
+        try:
+            from calibre_plugins.diaps_toolbag.dezalgo_config import plugin_prefs as prefs
+        except ImportError:
+            from dezalgo_config import plugin_prefs as prefs
+
+        self.criteria = None
+        self.prefs = prefs
+        self.parent = parent
+        self.help_file_name = f'{PLUGIN_SAFE_NAME}_dezalgo_help.html'
+        self.combo_box_options = []
+        self.combo_box_items = {}
+        self.taglist = self.prefs['taglist']
+        Dialog.__init__(self, _('Dezalgo'), 'toolbag_dezalgo_dialog', parent)
+
+    def setup_ui(self):
+        DEZALGO_STR = _('Dezalgo')
+        MINIFY_STR = _('Minify')
+        PRETTY_STR = _('Pretty Print')
+        self.NO_CHANGE_STR = _('No change')
+        self.combo_box_options = [DEZALGO_STR, MINIFY_STR, PRETTY_STR]
+        self.combo_box_items = {DEZALGO_STR: 'dezalgo', MINIFY_STR: 'minify', PRETTY_STR: 'pretty'}
+
+        layout = QVBoxLayout(self)
+        self.setLayout(layout)
+
+        help_layout = QHBoxLayout()
+        layout.addLayout(help_layout)
+        # Add hyperlink to a help file at the right. We will replace the correct name when it is clicked.
+        help_label = QLabel('<a href="http://www.foo.com/">Plugin Help</a>', self)
+        help_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+        help_label.setAlignment(Qt.AlignRight)
+        help_label.linkActivated.connect(self.help_link_activated)
+        help_layout.addWidget(help_label)
+
+        action_layout = QHBoxLayout()
+        layout.addLayout(action_layout)
+        label = QLabel(_('Action type:'), self)
+        action_layout.addWidget(label)
+        self.action_combo = QComboBox()
+        action_layout.addWidget(self.action_combo)
+        combo_box_options = [DEZALGO_STR, MINIFY_STR, PRETTY_STR]
+        self.action_combo.addItems(combo_box_options)
+        self.action_combo.currentIndexChanged.connect(self.update_gui)
+
+
+        layout.addSpacing(10)
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self._ok_clicked)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def update_gui(self):
+        # If "no attributes" is selected, disable the search text box and regex checkbox
+        # if self.attr_combo.currentIndex() == self.attr_combo.count()-1:
+        # if self.attr_combo.currentIndex() == 0:
+        #     self.srch_txt.clear()
+        #     self.srch_txt.setDisabled(True)
+        #     self.srch_method.setChecked(False)
+        #     self.srch_method.setDisabled(True)
+        # else:
+        #     self.srch_txt.setDisabled(False)
+        #     self.srch_method.setDisabled(False)
+
+        # self.newtag_combo.clear()
+        # self.newtag_combo.addItem(self.NO_CHANGE_STR)
+        # self.newtag_combo.addItems(self.prefs['{}_changes'.format(text_type(self.tag_combo.currentText()))])
+
+        print(f"Current dropdown index is {self.action_combo.currentIndex()}")
+        if self.action_combo.currentIndex() == 0:
+            print(f"Current dropdown selection is {self.combo_box_options[self.action_combo.currentIndex()]}")
+        else:
+            print(f"Current dropdown selection is {self.combo_box_options[self.action_combo.currentIndex()]}")
+        #     self.newtag_combo.setCurrentIndex(0)
+        #     self.newtag_combo.setDisabled(True)
+        #     self.newattr_txt.clear()
+        #     self.newattr_txt.setDisabled(True)
+        #     self.copy_attr.setChecked(False)
+        #     self.copy_attr.setDisabled(True)
+        # else:
+        #     self.newtag_combo.setDisabled(False)
+        #     self.newattr_txt.setDisabled(False)
+        #     self.copy_attr.setDisabled(False)
+
+    # def update_txt_box(self):
+    #     if self.copy_attr.isChecked():
+    #         self.newattr_txt.clear()
+    #         self.newattr_txt.setDisabled(True)
+    #     else:
+    #         self.newattr_txt.setDisabled(False)
+
+    def _ok_clicked(self):
+        action = self.combo_box_items[self.action_combo.currentText()]  # dezalgo, minify, pretty
+        # if self.action_combo.currentIndex() == 0:
+        #     action = 'dezalgo'
+        # else:
+        #     action = 'modify'
+        # # if self.attr_combo.currentIndex() == self.attr_combo.count()-1:
+        # if self.attr_combo.currentIndex() == 0:
+        #     attribute = None
+        # else:
+        #     attribute = text_type(self.attr_combo.currentText())
+        # srch_str = text_type(self.srch_txt.displayText())
+        # if not len(srch_str):
+        #     srch_str = None
+        # if srch_str is None and attribute is not None:
+        #     return error_dialog(self.parent, _('Error'), '<p>{0}'.format(
+        #             _('Must enter a value for the attribute selected')), det_msg='', show=True)
+        # srch_method = 'normal'
+        # if self.srch_method.isChecked():
+        #     srch_method = 'regex'
+        # if self.newtag_combo.currentIndex() == 0:
+        #     newtag = None
+        # else:
+        #     newtag = text_type(self.newtag_combo.currentText())
+        # if action == 'modify' and newtag is None and self.copy_attr.isChecked():
+        #     return error_dialog(self.parent, _('Error'), '<p>{0}'.format(
+        #             _('What--exactly--would that achieve?')), det_msg='', show=True)
+        # new_str = text_type(self.newattr_txt.displayText())
+        # copy_attr = False
+        # if self.copy_attr.isChecked():
+        #     copy_attr = True
+        # if not len(new_str):
+        #     new_str = ''
+
+        # self.criteria = (srch_str, srch_method, text_type(self.tag_combo.currentText()), attribute, action, newtag, new_str, copy_attr)
+        self.accept()
+
+    def getCriteria(self):
+        return self.criteria
+
+    def help_link_activated(self, url):
+        def get_help_file_resource():
+            # Copy the HTML helpfile to the plugin directory each time the
+            # link is clicked in case the helpfile is updated in newer plugins.
+            file_path = os.path.join(config_dir, 'plugins', self.help_file_name)
+            with open(file_path,'wb') as f:
+                f.write(load_resource(f"resources/{self.help_file_name}"))
+            return file_path
+        url = 'file:///' + get_help_file_resource()
+        open_url(QUrl(url))
 
 class ShowProgressDialog(QProgressDialog):
     def __init__(self, gui, container, match_list, criteria, callback_fn, action_type='Checking'):

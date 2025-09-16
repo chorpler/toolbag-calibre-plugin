@@ -48,11 +48,11 @@ except NameError:
     pass  # load_translations() added in calibre 1.9
 
 # This is where all preferences for this plugin will be stored.
-plugin_prefs = JSONConfig('plugins/{0}_SpanDivEdit_settings'.format(PLUGIN_SAFE_NAME))
+plugin_prefs = JSONConfig(f"plugins/{PLUGIN_SAFE_NAME}_Dezalgo_settings")
 
 # Set default preferences
 for tag in TAGLIST:
-    plugin_prefs.defaults['{}_changes'.format(tag)] = CHANGE_TO_MAP[tag]
+    plugin_prefs.defaults[f'{tag}_changes'] = CHANGE_TO_MAP[tag]
 plugin_prefs.defaults['attrs'] = ATTRS_LIST
 plugin_prefs.defaults['taglist'] = TAGLIST
 
@@ -61,7 +61,7 @@ class ConfigWidget(Dialog):
         self.gui = gui
         self.qlinedit_widgets = {}
         self.taglist = plugin_prefs['taglist']
-        Dialog.__init__(self, _('Edit Spans & Divs Customization'), '{}plugin:spandiv_config'.format(PLUGIN_SAFE_NAME), gui)
+        Dialog.__init__(self, _('Dezalgo Customization'), f'{PLUGIN_SAFE_NAME}plugin:dezalgo_config', gui)
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -101,13 +101,13 @@ class ConfigWidget(Dialog):
                 curr_col += 1
                 curr_item = 1
             # Add lable and QLineEdit widget to current column.
-            label = QLabel(_('<b>Choices to change "{}" elements to:</b>').format(tag), self)
+            label = QLabel(_(f'<b>Choices to change "{tag}" elements to:</b>'), self)
             label.setAlignment(Qt.AlignCenter)
             changes_str = ''
-            if '{}_changes'.format(tag) in plugin_prefs:
-                changes_str = ', '.join(plugin_prefs['{}_changes'.format(tag)])
+            if f'{tag}_changes' in plugin_prefs:
+                changes_str = ', '.join(plugin_prefs[f'{tag}_changes'])
             self.qlinedit_widgets[tag] = QLineEdit(changes_str, self)
-            self.qlinedit_widgets[tag].setToolTip('<p>{}'.format(tooltip))
+            self.qlinedit_widgets[tag].setToolTip(f'<p>{tooltip}')
             column[curr_col].addWidget(label)
             column[curr_col].addWidget(self.qlinedit_widgets[tag])
 

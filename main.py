@@ -15,8 +15,10 @@ except ImportError:
         from PyQt4.Qt import QAction, QMenu, QDialog, QIcon, QPixmap
 
 import os
+import sys
 from collections import OrderedDict
 from typing import List
+import traceback
 
 from calibre.gui2.tweak_book.plugin import Tool
 from calibre.gui2.tweak_book import editor_name
@@ -24,12 +26,39 @@ from calibre.gui2 import error_dialog, info_dialog
 from calibre.ebooks.oeb.polish.container import OEB_DOCS, OEB_STYLES
 
 from calibre.utils.config import JSONConfig, config_dir
-from calibre_plugins.diaps_toolbag.resources.html_parser import MarkupParser
-from calibre_plugins.diaps_toolbag.resources.smartypants import smartyPants
-from calibre_plugins.diaps_toolbag.utilities import unescape
-from calibre_plugins.diaps_toolbag.dialogs import ResultsDialog
+try:
+    from calibre_plugins.diaps_toolbag.resources.html_parser import MarkupParser
+    from calibre_plugins.diaps_toolbag.resources.smartypants import smartyPants
+    from calibre_plugins.diaps_toolbag.resources.dezalgo import strip_accents
+    from calibre_plugins.diaps_toolbag.utilities import unescape
+    from calibre_plugins.diaps_toolbag.dialogs import ResultsDialog, DezalgoDialog, RemoveDialog, ShowProgressDialog
+    from calibre_plugins.diaps_toolbag.dezalgo_config import ConfigWidget
 
-from calibre_plugins.diaps_toolbag.__init__ import PLUGIN_SAFE_NAME
+    from calibre_plugins.diaps_toolbag.__init__ import PLUGIN_SAFE_NAME
+except ImportError as e:
+    try:
+        print(f"Import 1 error: {e}\n{traceback.format_exception(e)}")
+        from resources.html_parser import MarkupParser
+        from resources.smartypants import smartyPants
+        from resources.dezalgo import strip_accents
+        from utilities import unescape
+        from dialogs import ResultsDialog, DezalgoDialog, RemoveDialog, ShowProgressDialog
+        from dezalgo_config import ConfigWidget
+
+        from __init__ import PLUGIN_SAFE_NAME
+    except ImportError as e2:
+        print(f"Import 2 error: {e2}\n{traceback.format_exception(e2)}")
+        from .resources.html_parser import MarkupParser
+        from .resources.smartypants import smartyPants
+        from .resources.dezalgo import strip_accents
+        from .utilities import unescape
+        from dialogs import ResultsDialog, DezalgoDialog, RemoveDialog, ShowProgressDialog
+        from dezalgo_config import ConfigWidget
+
+        from __init__ import PLUGIN_SAFE_NAME
+
+# import pydevd_pycharm
+# pydevd_pycharm.settrace('127.0.0.1', port=12345, stdoutToServer=True, stderrToServer=True)
 
 def get_icon(icon_name):
 
@@ -45,6 +74,7 @@ def get_icon(icon_name):
     # As we did not find an icon elsewhere, look within our zip resources
     return get_icons(icon_name)  # noqa
 
+print("CALIBRE PYTHONPATH:\n" + '\n'.join(sys.path))
 
 # pulls in translation files for _() strings
 try:
@@ -112,7 +142,7 @@ class SpanDivEdit(Tool):
         self.changed_files = []
         self.changes_per_file = OrderedDict()
 
-        from calibre_plugins.diaps_toolbag.dialogs import RemoveDialog
+        # from calibre_plugins.diaps_toolbag.dialogs import RemoveDialog
         dlg = RemoveDialog(self.gui)
         if dlg.exec_():
             criteria = dlg.getCriteria()
@@ -164,7 +194,7 @@ class SpanDivEdit(Tool):
             from calibre_plugins.diaps_toolbag.dialogs import ShowProgressDialog
             d = ShowProgressDialog(self.gui, container, OEB_DOCS, criteria, self.delete_modify, _('Parsing'))
             self.cleanasawhistle = d.clean
-            cpf  = list(self.changes_per_file.items())
+            cpf = list(self.changes_per_file.items())
             cpf2 = list(d.changes_per_file.items())
             cpf.extend(cpf2)
             self.changes_per_file = OrderedDict(cpf)
@@ -213,7 +243,9 @@ class SmarterPunct(Tool):
 
         # Create an action, this will be added to the plugins toolbar and
         # the plugins menu
-        ac = QAction(get_icon('images/smarten_icon.png'), _('Smarten Punctuation (the sequel)'), self.gui)
+        # ac = QAction(get_icon('images/smarten_punctuation_icon.png'), _('Smarten Punctuation (the sequel)'), self.gui)
+        # ac = QAction(get_icon('images/yin_yang_icon.128.png'), _('Smarten Punctuation (the sequel)'), self.gui)
+        ac = QAction(get_icon('images/yin_yang_icon.round.128.png'), _('Smarten Punctuation (the sequel)'), self.gui)
         self.restore_prefs()
         if not for_toolbar:
             # Register a keyboard shortcut for this toolbar action. We only
@@ -434,3 +466,143 @@ class CSScm2em(Tool):
     def convertcm2em(self, value):
         conv=2.37106301584
         return '%.2f' % (conv*float(value))
+
+
+class Dezalgo(Tool):
+    name = 'Dezalgo'
+
+    #: If True the user can choose to place this tool in the plugins toolbar
+    allowed_in_toolbar = True
+
+    #: If True the user can choose to place this tool in the plugins menu
+    allowed_in_menu = True
+
+    cleanasawhistle = True
+
+    changes_per_file = OrderedDict()
+    changed_files = []
+
+    criteria = None
+
+    def create_action(self, for_toolbar=True):
+        self.plugin_prefs = JSONConfig(f'plugins/{PLUGIN_SAFE_NAME}_{self.name}')
+        self.plugin_prefs.defaults['parse_current'] = True
+
+        # Create an action, this will be added to the plugins toolbar and
+        # the plugins menu
+        ac = QAction(get_icon('images/dezalgo_icon.128.png'), _(self.name), self.gui)
+        self.restore_prefs()
+        if not for_toolbar:
+            # Register a keyboard shortcut for this toolbar action. We only
+            # register it for the action created for the menu, not the toolbar,
+            # to avoid a double trigger
+            self.register_shortcut(ac, 'dezalgo', default_keys=('Ctrl+Shift+Alt+D',))
+        else:
+            menu = QMenu()
+            ac.setMenu(menu)
+            checked_menu_item = menu.addAction(_('Edit current file only'), self.toggle_parse_current)
+            checked_menu_item.setCheckable(True)
+            checked_menu_item.setChecked(self.parse_current)
+            menu.addSeparator()
+            menu.addAction(_('Customize'), self.show_configuration)
+        ac.triggered.connect(self.dispatcher)
+        return ac
+
+    def toggle_parse_current(self):
+        self.parse_current = not self.parse_current
+        self.save_prefs()
+
+    def dispatcher(self):
+        container = self.current_container  # The book being edited as a container object
+        if not container:
+            return info_dialog(self.gui, _('No book open'),
+                        _('Need to have a book open first.'), show=True)
+        if self.parse_current:
+            name = editor_name(self.gui.central.current_editor)
+            if not name or container.mime_map[name] not in OEB_DOCS:
+                return info_dialog(self.gui, _('Cannot Process'),
+                        _('No file open for editing or the current file is not an (x)html file.'), show=True)
+
+        self.cleanasawhistle = True
+        self.changed_files = []
+        self.changes_per_file = OrderedDict()
+
+        # from calibre_plugins.diaps_toolbag.dialogs import RemoveDialog
+        dlg = DezalgoDialog(self.gui)
+        if dlg.exec_():
+            criteria = dlg.getCriteria()
+            self.criteria = criteria
+
+            # Ensure any in progress editing the user is doing is present in the container
+            self.boss.commit_all_editors_to_container()
+            self.boss.add_savepoint(_('Before: Dezalgo'))
+
+            try:
+                self.process_files(criteria)
+            except Exception:
+                # Something bad happened report the error to the user
+                import traceback
+                error_dialog(self.gui, _('Failed'),
+                    _('Failed to dezalgo, click "Show details" for more info'),
+                    det_msg=traceback.format_exc(), show=True)
+                # Revert to the saved restore point
+                self.boss.revert_requested(self.boss.global_undo.previous_container)
+            else:
+                if not self.cleanasawhistle:
+                    # Show the user what changes we have made,
+                    # allowing then to revert them if necessary
+                    accepted = ResultsDialog(self.gui, self.criteria, self.changed_files, self.changes_per_file).exec_()
+                    if accepted == QDialog.Accepted:
+                        self.boss.show_current_diff()
+                    # Update the editor UI to take into account all the changes we
+                    # have made
+                    self.boss.apply_container_update_to_gui()
+                else:
+                    info_dialog(self.gui, _('Nothing changed'),
+                    '<p>{0}'.format(_('Nothing matching your criteria was found.')), show=True)
+
+    def process_files(self, criteria):
+        container = self.current_container  # The book being edited as a container object
+
+        if self.parse_current:
+            name = editor_name(self.gui.central.current_editor)
+            data = container.raw_data(name)
+            output: str = self.dezalgo(data, criteria)
+            # total_changes = change_count + delete_count
+            if output != data:
+                self.cleanasawhistle = False
+                container.open(name, 'w').write(output)
+        else:
+            d = ShowProgressDialog(self.gui, container, OEB_DOCS, criteria, self.dezalgo, _('Parsing'))
+            self.cleanasawhistle = d.clean
+            cpf = list(self.changes_per_file.items())
+            cpf2 = list(d.changes_per_file.items())
+            cpf.extend(cpf2)
+            self.changes_per_file = OrderedDict(cpf)
+
+    def dezalgo(self, data, criteria) -> str:
+        output: str = strip_accents(data)
+        return output
+            
+        # _parser = MarkupParser(data, srch_str=criteria[0], srch_method=criteria[1], tag=criteria[2], attrib=criteria[3],
+        #                        action=criteria[4], new_tag=criteria[5], new_str=criteria[6], copy=criteria[7])
+
+        # should return a list: [COMPLETE_XHTML_STRING, CHANGE_COUNT, DELETE_COUNT]
+        # output: List = _parser.processml()
+        # htmlstr = output[0]
+        # delete_count = output[2] if output is not None and len(output) > 2 else 0
+        # change_count = output[1] if output is not None and len(output) > 1 else 0
+        # delmod_result = [htmlstr, change_count, delete_count]
+        # return delmod_result
+        # return htmlstr
+
+    def show_configuration(self):
+        dlg = ConfigWidget(self.gui)
+        if dlg.exec_():
+            pass
+
+    def restore_prefs(self):
+        self.parse_current = self.plugin_prefs.get('parse_current')
+
+    def save_prefs(self):
+        self.plugin_prefs['parse_current'] = self.parse_current

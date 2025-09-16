@@ -14,25 +14,24 @@ import inspect
 import zipfile
 from subprocess import Popen, PIPE, STDOUT
 
-
 try:
     codecs.lookup('cp65001')
 except LookupError:
     codecs.register(
         lambda name: name == 'cp65001' and codecs.lookup('utf-8') or None)
 
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 
 PLUGIN_DIRS = ['images', 'resources', 'translations']
 
 PLUGIN_FILES = ['__init__.py',
-            'dialogs.py',
-            'main.py',
-            'plugin-import-name-diaps_toolbag.txt',
-            'span_div_config.py',
-            'utilities.py'
-]
+                'dialogs.py',
+                'main.py',
+                'plugin-import-name-diaps_toolbag.txt',
+                'span_div_config.py',
+                'utilities.py',
+                'dezalgo_config.py',
+                ]
 
 
 def findVersion():
@@ -46,7 +45,7 @@ def findVersion():
 
 
 # Find version info from __init__.py and build zip file name from it
-VERS_INFO =  findVersion()
+VERS_INFO = findVersion()
 PLUGIN_NAME = os.path.join(SCRIPT_DIR, 'diaps_toolbag_v{}_plugin.zip'.format(VERS_INFO))
 
 
@@ -65,16 +64,17 @@ def calibreWrapper(*cmd):
     output = process.communicate()[0]
     exitCode = process.returncode
 
-    if (exitCode == 0):
+    if exitCode == 0:
         return output
     else:
         pass
+
 
 # recursive zip creation support routine
 def zipUpDir(myzip, tdir, localname):
     currentdir = tdir
     if localname != "":
-        currentdir = os.path.join(currentdir,localname)
+        currentdir = os.path.join(currentdir, localname)
     dir_contents = os.listdir(currentdir)
     for entry in dir_contents:
         afilename = entry
@@ -85,6 +85,7 @@ def zipUpDir(myzip, tdir, localname):
                 myzip.write(realfilePath, localfilePath, zipfile.ZIP_DEFLATED)
             elif os.path.isdir(realfilePath):
                 zipUpDir(myzip, tdir, localfilePath)
+
 
 def removePreviousZip():
     print('Removing any leftover zip files ...')
@@ -99,6 +100,7 @@ if __name__ == "__main__":
 
     opt = OptionParser(usage='python %prog [options]')
     opt.add_option('-d', '--debug', action='store_true', dest='debugmode', help='Install/debug plugin using calibre')
+    opt.add_option('-e', '--edit', action='store_true', dest='editmode', help='Start editor instead of full calibre')
     (options, args) = opt.parse_args()
 
     print('Removing any previous build leftovers ...')
@@ -110,19 +112,32 @@ if __name__ == "__main__":
     for entry in files:
         filepath = os.path.join(SCRIPT_DIR, entry)
         if os.path.isfile(filepath) and entry in PLUGIN_FILES:
-            outzip.write(filepath, entry ,zipfile.ZIP_DEFLATED)
+            outzip.write(filepath, entry, zipfile.ZIP_DEFLATED)
         elif os.path.isdir(filepath) and entry in PLUGIN_DIRS:
             zipUpDir(outzip, SCRIPT_DIR, entry)
     outzip.close()
 
     print('Plugin successfully created!')
 
+    if options.editmode:
+        print('\nAttempting to install plugin and launch calibre editor …')
+        print('If successful, debug output should print to terminal.')
+        args = ['calibre-debug', '-s']
+        result1 = calibreWrapper(*args)
+        args = ['calibre-customize', '-a', PLUGIN_NAME]
+        result2 = calibreWrapper(*args)
+        # args = ['calibre-debug', '-g']
+        args = ['calibre-debug', '--edit-book', '-g']
+        result3 = calibreWrapper(*args)
+
     if options.debugmode:
+        print("PYTHONPATH:\n" + '\n'.join(sys.path))
         print('\nAttempting to install plugin and launch calibre ...')
         print('If successful, debug output should print to terminal.')
-        args= ['calibre-debug', '-s']
+        args = ['calibre-debug', '-s']
         result = calibreWrapper(*args)
-        args= ['calibre-customize', '-a', PLUGIN_NAME]
+        args = ['calibre-customize', '-a', PLUGIN_NAME]
         result = calibreWrapper(*args)
-        args= ['calibre-debug', '-g']
+        # args = ['calibre-debug', '-g']
+        args = ['calibre-debug', '-g']
         result = calibreWrapper(*args)
