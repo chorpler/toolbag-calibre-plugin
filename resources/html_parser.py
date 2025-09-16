@@ -280,7 +280,7 @@ class MarkupParser(object):
                     self.path.append(tname)
                 elif ttype == 'end' and last_path is not None:
                     if tname != self.path[-1]:
-                        print ('improper nesting: ', self.path, tname, type)
+                        print('improper nesting: ', self.path, tname, type)
                     self.path.pop()
 
                 if tname == 'removeme:{0}'.format(tname):
