@@ -50,7 +50,7 @@ PLUGIN_NAME = os.path.join(SCRIPT_DIR, 'diaps_toolbag_v{}_plugin.zip'.format(VER
 
 
 def calibreWrapper(*cmd):
-    process = Popen(list(cmd), stdout=PIPE, stderr=STDOUT)
+    process = Popen(list(cmd), bufsize=0, stdout=PIPE, stderr=STDOUT)
 
     # Poll process for new output until finished
     while True:

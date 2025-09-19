@@ -561,13 +561,14 @@ class Dezalgo(Tool):
                     info_dialog(self.gui, _('Nothing changed'),
                     '<p>{0}'.format(_('Nothing matching your criteria was found.')), show=True)
 
-    def process_files(self, criteria):
+    def process_files(self, criteria = None):
         container = self.current_container  # The book being edited as a container object
 
         if self.parse_current:
             name = editor_name(self.gui.central.current_editor)
+            print(f"dezalgoing file: {name}")
             data = container.raw_data(name)
-            output: str = self.dezalgo(data, criteria)
+            output: str = self.dezalgo(data)
             # total_changes = change_count + delete_count
             if output != data:
                 self.cleanasawhistle = False
@@ -580,10 +581,11 @@ class Dezalgo(Tool):
             cpf.extend(cpf2)
             self.changes_per_file = OrderedDict(cpf)
 
-    def dezalgo(self, data, criteria) -> str:
+    def dezalgo(self, data) -> str:
+        print(f"\n\n\ndezalgo: input data is:\n{data[:5000]}\n\n")
         output: str = strip_accents(data)
+        print(f"\n\n\ndezalgo: ouput data is:\n{output[:5000]}\n\n")
         return output
-            
         # _parser = MarkupParser(data, srch_str=criteria[0], srch_method=criteria[1], tag=criteria[2], attrib=criteria[3],
         #                        action=criteria[4], new_tag=criteria[5], new_str=criteria[6], copy=criteria[7])
 
